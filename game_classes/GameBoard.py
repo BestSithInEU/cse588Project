@@ -1,67 +1,145 @@
+import re
 import random
 
 
 class GameBoard:
-    def __init__(self, num_pieces, player1, player2):
-        self.board = [[" " for _ in range(7)] for _ in range(7)]
-        self.place_pieces(num_pieces, player1, player2)
+    """
+    Represents a game board.
 
-    def place_pieces(self, num_pieces, player1, player2):
-        empty_cells = [(i, j) for i in range(7) for j in range(7)]
+    Attributes:
+        size (int): The size of the game board.
+        board (list): The game board represented as a 2D list.
+    """
+
+    def __init__(self, num_pieces, player1, player2, size=7):
+        """
+        Initializes a GameBoard object.
+
+        Args:
+            num_pieces (int): The number of pieces to be placed on the board for each player.
+            player1 (Player): The first player object.
+            player2 (Player): The second player object.
+            size (int, optional): The size of the game board. Defaults to 7.
+        """
+        self.size = size
+        self.board = [[" " for _ in range(self.size)] for _ in range(self.size)]
+        self._place_pieces(num_pieces, player1, player2)
+
+    def _place_pieces(self, num_pieces, player1, player2):
+        """
+        Randomly places the pieces on the board for each player.
+
+        Args:
+            num_pieces (int): The number of pieces to be placed on the board for each player.
+            player1 (Player): The first player object.
+            player2 (Player): The second player object.
+        """
+        empty_cells = [(i, j) for i in range(self.size) for j in range(self.size)]
         for _ in range(num_pieces):
-            # Place a piece for Player 1
-            row, col = random.choice(empty_cells)
-            self.board[row][col] = player1.symbol
-            player1.add_piece(self.convert_coord(row, col))
-            empty_cells.remove((row, col))
+            for player in [player1, player2]:
+                cell = random.choice(empty_cells)
+                self.board[cell[0]][cell[1]] = player.symbol
+                player.add_piece(self._convert_coord(cell[0], cell[1]))
+                empty_cells.remove(cell)
 
-            # Place a piece for Player 2
-            row, col = random.choice(empty_cells)
-            self.board[row][col] = player2.symbol
-            player2.add_piece(self.convert_coord(row, col))
-            empty_cells.remove((row, col))
+    def _convert_coord(self, row, col):
+        """
+        Converts row and column indices to coordinate strings.
 
-    def convert_coord(self, row, col):
-        # Convert row, col to string format (e.g., "a1")
+        Args:
+            row (int): The row index.
+            col (int): The column index.
+
+        Returns:
+            str: The coordinate string.
+        """
         return f"{chr(97 + row)}{col + 1}"
 
-    def display_board(self):
-        print("   " + "  ".join("1234567"))
-        for i, row in enumerate(self.board):
-            print(f"{chr(97 + i)} {' | '.join(row)}")
-            if i < 6:
-                print("  " + "-" * 13)
+    def parse_coordinates(self, coord):
+        """
+        Parses coordinate strings into row and column indices.
 
-    def update_board(self, source, destination, player_symbol):
-        src_row, src_col = ord(source[0]) - ord("a"), int(source[1]) - 1
-        dest_row, dest_col = ord(destination[0]) - ord("a"), int(destination[1]) - 1
-        self.board[src_row][src_col] = " "
-        self.board[dest_row][dest_col] = player_symbol
+        Args:
+            coord (str): The coordinate string.
+
+        Returns:
+            tuple: The row and column indices.
+
+        Raises:
+            ValueError: If the coordinate format is invalid.
+        """
+        pattern = r"^([a-z])(\d+)$"
+        match = re.match(pattern, coord)
+        try:
+            if match:
+                row = ord(match.group(1)) - ord("a")
+                col = int(match.group(2)) - 1
+                return row, col
+        except ValueError:
+            raise ValueError("Invalid coordinate format")
+
+    def _is_within_board(self, row, col):
+        """
+        Checks if a given row and column indices are within the board boundaries.
+
+        Args:
+            row (int): The row index.
+            col (int): The column index.
+
+        Returns:
+            bool: True if the indices are within the board boundaries, False otherwise.
+        """
+        return 0 <= row < self.size and 0 <= col < self.size
 
     def is_valid_move(self, source, destination, player_symbol):
+        """
+        Checks if a move from source to destination is valid for a player.
+
+        Args:
+            source (str): The source coordinate.
+            destination (str): The destination coordinate.
+            player_symbol (str): The symbol representing the player.
+
+        Returns:
+            bool: True if the move is valid, False otherwise.
+        """
+
         src_row, src_col = self.parse_coordinates(source)
         dest_row, dest_col = self.parse_coordinates(destination)
         if not (
-            0 <= src_row < 7
-            and 0 <= src_col < 7
-            and 0 <= dest_row < 7
-            and 0 <= dest_col < 7
+            self._is_within_board(src_row, src_col)
+            and self._is_within_board(dest_row, dest_col)
         ):
-            print("Move outside the board")
-            return False  # Move outside the board
+            return False
         if abs(src_row - dest_row) + abs(src_col - dest_col) != 1:
-            print("Not moving to a neighbor")
-            return False  # Not moving to a neighbor
+            return False
         if (
             self.board[src_row][src_col] != player_symbol
             or self.board[dest_row][dest_col] != " "
         ):
-            print("Invalid source or destination")
-            return False  # Invalid source or destination
-        print("Valid move")
+            return False
         return True
 
-    def parse_coordinates(self, coord):
-        row = ord(coord[0]) - ord("a")
-        col = int(coord[1]) - 1
-        return row, col
+    def display_board(self):
+        """
+        Displays the current state of the board.
+        """
+        header = "   " + "  ".join(map(str, range(1, self.size + 1)))
+        rows = [f"{chr(97 + i)} {' | '.join(row)}" for i, row in enumerate(self.board)]
+        separator = "  " + "-" * (self.size * 4 - 1)
+        print(header)
+        print(separator.join(rows))
+
+    def update_board(self, source, destination, player_symbol):
+        """
+        Updates the board after a move.
+
+        Args:
+            source (str): The source coordinate.
+            destination (str): The destination coordinate.
+            player_symbol (str): The symbol representing the player.
+        """
+        src_row, src_col = self.parse_coordinates(source)
+        dest_row, dest_col = self.parse_coordinates(destination)
+        self.board[src_row][src_col] = " "
+        self.board[dest_row][dest_col] = player_symbol
