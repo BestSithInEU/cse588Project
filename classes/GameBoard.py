@@ -70,12 +70,11 @@ class GameBoard:
         """
         pattern = r"^([a-z])(\d+)$"
         match = re.match(pattern, coord)
-        try:
-            if match:
-                row = ord(match.group(1)) - ord("a")
-                col = int(match.group(2)) - 1
-                return row, col
-        except ValueError:
+        if match:
+            row = ord(match.group(1)) - ord("a")
+            col = int(match.group(2)) - 1
+            return row, col
+        else:
             raise ValueError("Invalid coordinate format")
 
     def _is_within_board(self, row, col):
@@ -103,20 +102,18 @@ class GameBoard:
         Returns:
             bool: True if the move is valid, False otherwise.
         """
+        if destination is None:
+            return False
 
         src_row, src_col = self.parse_coordinates(source)
         dest_row, dest_col = self.parse_coordinates(destination)
         if not (
-            self._is_within_board(src_row, src_col)
-            and self._is_within_board(dest_row, dest_col)
+            self._is_within_board(src_row, src_col) and self._is_within_board(dest_row, dest_col)
         ):
             return False
         if abs(src_row - dest_row) + abs(src_col - dest_col) != 1:
             return False
-        if (
-            self.board[src_row][src_col] != player_symbol
-            or self.board[dest_row][dest_col] != " "
-        ):
+        if self.board[src_row][src_col] != player_symbol or self.board[dest_row][dest_col] != " ":
             return False
         return True
 

@@ -90,9 +90,10 @@ class Player:
             source = self.convert_coord(row, col)
             for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
                 dest_row, dest_col = row + dx, col + dy
-                destination = self.convert_coord(dest_row, dest_col)
-                if board.is_valid_move(source, destination, self.symbol):
-                    valid_moves.append((source, destination))
+                if 0 <= dest_row < 7 and 0 <= dest_col < 7:
+                    destination = self.convert_coord(dest_row, dest_col)
+                    if board.is_valid_move(source, destination, self.symbol):
+                        valid_moves.append((source, destination))
         return valid_moves
 
     def count_unique_moves(self, board) -> int:
@@ -140,4 +141,4 @@ class Player:
         if 0 <= row < 7 and 0 <= col < 7:
             return f"{chr(97 + row)}{col + 1}"
         else:
-            return None
+            return ""
