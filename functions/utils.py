@@ -42,23 +42,42 @@ def get_input(prompt: str, valid_options: List[str]) -> str:
     return choice
 
 
+def get_input_int(prompt: str, min_value: int, max_value: int) -> int:
+    """
+    Displays a dialog box to prompt the user for an integer input and returns the entered value.
+
+    Parameters:
+    - prompt (str): The message displayed in the dialog box to prompt the user for input.
+    - min_value (int): The minimum value that the user can enter.
+    - max_value (int): The maximum value that the user can enter.
+
+    Returns:
+    - int: The entered value from the dialog box.
+    """
+    value, ok = QInputDialog.getInt(None, "Input", prompt, min=min_value, max=max_value)
+    if ok:
+        return value
+    else:
+        raise ValueError("Invalid input")
+
+
 def apply_dark_theme(app):
     darkPalette = QPalette()
 
     # Set color for different aspects of the UI
     darkPalette.setColor(QPalette.Window, QColor(53, 53, 53))
-    darkPalette.setColor(QPalette.WindowText, Qt.white)
+    darkPalette.setColor(QPalette.WindowText, QColor(255, 255, 255))
     darkPalette.setColor(QPalette.Base, QColor(25, 25, 25))
     darkPalette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-    darkPalette.setColor(QPalette.ToolTipBase, Qt.white)
-    darkPalette.setColor(QPalette.ToolTipText, Qt.white)
-    darkPalette.setColor(QPalette.Text, Qt.white)
+    darkPalette.setColor(QPalette.ToolTipBase, QColor(255, 255, 255))
+    darkPalette.setColor(QPalette.ToolTipText, QColor(255, 255, 255))
+    darkPalette.setColor(QPalette.Text, QColor(255, 255, 255))
     darkPalette.setColor(QPalette.Button, QColor(53, 53, 53))
-    darkPalette.setColor(QPalette.ButtonText, Qt.white)
-    darkPalette.setColor(QPalette.BrightText, Qt.red)
+    darkPalette.setColor(QPalette.ButtonText, QColor(255, 255, 255))
+    darkPalette.setColor(QPalette.BrightText, QColor(255, 0, 0))
     darkPalette.setColor(QPalette.Link, QColor(42, 130, 218))
     darkPalette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-    darkPalette.setColor(QPalette.HighlightedText, Qt.black)
+    darkPalette.setColor(QPalette.HighlightedText, QColor(0, 0, 0))
 
     # Set the modified palette to the QApplication instance
     app.setPalette(darkPalette)
@@ -77,9 +96,15 @@ def play_player_vs_player_game(initial_pieces: int, turn_limit: int, app: QAppli
         None
     """
     # Create a new instance of the Game class with the initial pieces and turn limit
-    game = Game(initial_pieces, turn_limit)
+    chosen_piece = get_input("Choose piece (1: X, 2: O): ", ["1", "2"])
+    player1_symbol = "X" if chosen_piece == "1" else "O"
+    player2_symbol = "O" if chosen_piece == "1" else "X"
 
-    # Create a new instance of the GameGUI class with the game instance
+    player1 = Player(player1_symbol)
+    player2 = Player(player2_symbol)
+    config = GameConfig(initial_pieces, turn_limit, random_start=True)
+    game = Game(config, player1, player2)
+
     gui = GameGUI(game)
 
     # Show the game GUI
@@ -291,12 +316,36 @@ def hyperparameter_search(
         return ai_player2, best_hyperparams_player2
 
 
+def evaluate_model(ai_player, ai_player2, config, num_games=100):
+    """
+    Evaluate an AI player by playing a number of games and returning the average score.
+
+    Args:
+    - ai_player (GameAI): The AI player to evaluate.
+    - num_games (int): The number of games to play for evaluation.
+
+    Returns:
+    - float: The average score of the AI player.
+    """
+    total_score = 0
+    score_mapping = {"win": 1, "draw": -0.5, "lose": -1}  # Define your own scoring system
+
+    for _ in range(num_games):
+        game = Game(config, ai_player, ai_player2)
+        game.play_game()
+        game_result = game.determine_game_result()
+        total_score += score_mapping[game_result]
+
+    return total_score / num_games
+
+
 def optimize_and_train_ai(
     initial_pieces: int,
     turn_limit: int,
     num_games_train: int,
     num_games_optimize: int,
     num_trials: int,
+    replay_batch_size: int,  # Add this parameter to specify the batch size for replay
 ) -> Tuple[GameAI, GameAI]:
     """
     Optimizes hyperparameters and then trains the AI.
@@ -307,6 +356,7 @@ def optimize_and_train_ai(
     - num_games_train (int): Number of games for training.
     - num_games_optimize (int): Number of games for each hyperparameter optimization trial.
     - num_trials (int): Number of trials for hyperparameter optimization.
+    - replay_batch_size (int): The size of the batch for experience replay.
 
     Returns:
     - Tuple[GameAI, GameAI]: A tuple containing the two AI players.
@@ -334,5 +384,57 @@ def optimize_and_train_ai(
     ai_player1.set_hyperparameters(optimized_hyperparams)
     ai_player2.set_hyperparameters(optimized_hyperparams)
     print(f"Optimized hyperparameters: {optimized_hyperparams}")
+
+    # Training AI players
+    print("Training AI players...")
+    for i in range(num_games_train):
+        turn_count = 0
+
+        print(f"\nStarting Game {i + 1}")
+
+        while True:
+            print(f"Turn {turn_count + 1}: Player {game.current_player.symbol} is making a move.")
+            # Save the current model weights
+            ai_player1.save_model("player1", initial_pieces)
+            ai_player2.save_model("player2", initial_pieces)
+
+            # Play a game and update the models
+            game.play_game()
+
+            # Remember the game state, action, reward, next state, and done status
+            state = game.get_state()
+            action = game.get_action()
+            reward = game.get_reward()
+            next_state = game.get_next_state()
+            done = game.is_done()
+            ai_player1.remember(state, action, reward, next_state, done)
+            ai_player2.remember(state, action, reward, next_state, done)
+
+            # Replay the experiences
+            ai_player1.replay(replay_batch_size)
+            ai_player2.replay(replay_batch_size)
+
+            # Evaluate the new models
+            new_score1 = evaluate_model(
+                ai_player1, ai_player2, config, num_games=num_games_optimize
+            )
+            new_score2 = evaluate_model(
+                ai_player2, ai_player1, config, num_games=num_games_optimize
+            )
+
+            # Update the scores if the new scores are greater
+            ai_player1.update_score(new_score1)
+            ai_player2.update_score(new_score2)
+
+            # If the new model is worse, rollback to the previous model
+            if new_score1 < ai_player1.score:
+                ai_player1.load_model("player1", initial_pieces)
+            if new_score2 < ai_player2.score:
+                ai_player2.load_model("player2", initial_pieces)
+
+            turn_count += 1
+
+            if turn_count >= turn_limit:
+                break
 
     return ai_player1, ai_player2
