@@ -15,9 +15,7 @@ def main(app):
             [str(i) for i in range(1, 11)],
         )
     )
-    turn_limit = int(
-        get_input("Enter the turn limit: ", [str(i) for i in range(1, 101)])
-    )
+    turn_limit = int(get_input("Enter the turn limit: ", [str(i) for i in range(1, 101)]))
 
     if mode == "1":
         play_player_vs_player_game(initial_pieces, turn_limit, app)
@@ -32,27 +30,27 @@ def main(app):
     elif mode == "3":
         play_player_vs_ai_game(initial_pieces, turn_limit, app)
     elif mode == "4":
-        num_games_optimize = int(
-            get_input(
-                "Enter the number of games for optimization: ",
-                [str(i) for i in range(1, 5001)],
-            )
+        num_games_optimize = get_input_int(
+            "Enter the number of games for optimization: ", 1, 99999999
         )
-        num_trials = int(
-            get_input(
-                "Enter the number of trials for optimization: ",
-                [str(i) for i in range(1, 5001)],
-            )
+        num_trials = get_input_int("Enter the number of trials for optimization: ", 1, 99999999)
+        num_games_train = get_input_int("Enter the number of games for training: ", 1, 99999999)
+        replay_batch_size = get_input_int(
+            "Enter the replay batch size for optimization: ", 1, 99999999
         )
-        num_games_train = int(
-            get_input(
-                "Enter the number of games for training: ",
-                [str(i) for i in range(1, 5001)],
-            )
+        ai_player1, ai_player2 = optimize_and_train_ai(
+            initial_pieces,
+            turn_limit,
+            num_games_train,
+            num_games_optimize,
+            num_trials,
+            replay_batch_size,
         )
-        optimize_and_train_ai(
-            initial_pieces, turn_limit, num_games_train, num_games_optimize, num_trials
-        )
+
+        ai_player1.save_model("ai_player1", initial_pieces)
+        ai_player1.save_hyperparameters("ai_player1", initial_pieces)
+        ai_player2.save_model("ai_player2", initial_pieces)
+        ai_player2.save_hyperparameters("ai_player2", initial_pieces)
 
     print("Exiting main function")
 
