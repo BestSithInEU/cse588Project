@@ -75,12 +75,8 @@ class GameGUI(QMainWindow):
     def update_unique_moves_labels(self):
         player1_unique_moves = self.game.player1.count_unique_moves(self.game.board)
         player2_unique_moves = self.game.player2.count_unique_moves(self.game.board)
-        self.unique_moves_label_player1.setText(
-            f"Player 1 Unique Moves: {player1_unique_moves}"
-        )
-        self.unique_moves_label_player2.setText(
-            f"Player 2 Unique Moves: {player2_unique_moves}"
-        )
+        self.unique_moves_label_player1.setText(f"Player 1 Unique Moves: {player1_unique_moves}")
+        self.unique_moves_label_player2.setText(f"Player 2 Unique Moves: {player2_unique_moves}")
 
     def createUndoRedoButtons(self):
         self.undo_button = QPushButton("Undo")
@@ -123,14 +119,12 @@ class GameGUI(QMainWindow):
         else:
             player_text = "<span style='color: blue;'>Player 2 (O)</span>"
         current_turn_text = (
-            f"Turn {self.game.current_turn}/{self.game.turn_limit}: {player_text}"
+            f"Turn {self.game.current_turn}/{self.game.state.turn_limit}: {player_text}"
         )
         self.turn_label.setText(current_turn_text)
 
     def update_move_history_display(self):
-        history_text = "\n".join(
-            [self.format_move(move) for move in self.game.move_history]
-        )
+        history_text = "\n".join([self.format_move(move) for move in self.game.move_history])
         self.move_history_display.setText(history_text)
 
     def format_move(self, move):
