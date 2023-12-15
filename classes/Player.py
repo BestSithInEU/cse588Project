@@ -1,6 +1,3 @@
-import numpy as np
-
-
 class Player:
     """
     The `Player` class represents a player in a game. It has methods to add and move pieces on a game board,
@@ -49,7 +46,7 @@ class Player:
             The coordinate string in the format 'a1', 'b2', etc.
         """
         row, col = self.parse_coord(coord)
-        if 0 <= row < 8 and 0 <= col < 8:
+        if 0 <= row < 7 and 0 <= col < 7:
             self.pieces.add((row, col))
 
     def move_piece(self, source: str, destination: str) -> None:
@@ -65,8 +62,8 @@ class Player:
         """
         source_row, source_col = self.parse_coord(source)
         destination_row, destination_col = self.parse_coord(destination)
-        if (0 <= source_row < 8 and 0 <= source_col < 8) and (
-            0 <= destination_row < 8 and 0 <= destination_col < 8
+        if (0 <= source_row < 7 and 0 <= source_col < 7) and (
+            0 <= destination_row < 8 and 0 <= destination_col < 7
         ):
             self.pieces.remove((source_row, source_col))
             self.pieces.add((destination_row, destination_col))
