@@ -1,11 +1,12 @@
 import json
+import os
 import random
 from collections import deque
 
 import numpy as np
 from keras import backend as K
 from keras.layers import Activation, Dense, Dropout
-from keras.models import Sequential
+from keras.models import Sequential, load_model, save_model, Model
 from keras.optimizers import Adam
 
 from .Player import Player
@@ -49,11 +50,12 @@ class GameAI(Player):
         self.input_size = input_size
         self.hidden_layer_size = hidden_layer_size
         self.game = None
+        self.score = 0
         self.memory = deque(maxlen=2000)  # Experience replay memory
         self.gamma = 0.95  # Discount factor for Temporal Difference Learning
         self.learning_rate = 0.001  # Initial learning rate
         self.learning_rate_decay = 0.999  # Learning rate decay
-        self.model = self.create_model(self.input_size, self.hidden_layer_size)
+        self.model: Model = self.create_model(self.input_size, self.hidden_layer_size)
 
     def create_model(self, input_size, hidden_layer_size):
         """The function creates a sequential model with multiple hidden layers
@@ -145,7 +147,8 @@ class GameAI(Player):
         best_move = self.choose_best_valid_move(prediction, valid_moves)
         return best_move
 
-    def choose_best_valid_move(self, prediction, valid_moves):
+    @staticmethod
+    def choose_best_valid_move(prediction, valid_moves):
         """The function "choose_best_valid_move" takes a prediction and a list
         of valid moves, and returns the move with the highest score according
         to the prediction.
@@ -162,16 +165,18 @@ class GameAI(Player):
         -------
             the best valid move based on the prediction scores.
         """
-        move_scores = {move: prediction[self.move_to_index(move)] for move in valid_moves}
+        move_scores = {move: prediction[i] for i, move in enumerate(valid_moves)}
+
         if move_scores:
             best_move = max(
                 (score for score in move_scores.items() if score[1] is not None),
                 key=lambda x: x[1],
                 default=None,
             )
-        else:
-            best_move = None
-        return best_move
+            if best_move is not None:
+                source, destination = best_move[0]
+                return str(source), str(destination)
+        return None
 
     def move_to_index(self, move):
         """The function "move_to_index" takes a move as input and returns the
@@ -191,7 +196,8 @@ class GameAI(Player):
         dest_index = self.coord_to_index(dest_coord)
         return dest_index
 
-    def coord_to_index(self, coord):
+    @staticmethod
+    def coord_to_index(coord):
         """Convert a coordinate in the form of a string to an index in a 2D
         array.
 
@@ -290,7 +296,10 @@ class GameAI(Player):
         for state, action, reward, next_state, done in minibatch:
             target = reward
             if not done:
-                target = reward + self.gamma * np.amax(self.model.predict(next_state)[0])
+                target = reward + self.gamma * np.amax(
+                    self.model.predict(self.prepare_input_data(next_state))[0]
+                )
+            state = self.prepare_input_data(state)
             target_f = self.model.predict(state)
             target_f[0][action] = target
             self.model.fit(state, target_f, epochs=1, verbose="0")
@@ -330,6 +339,8 @@ class GameAI(Player):
             action = self.move_to_index((last_move["source"], last_move["destination"]))
             next_state = self.prepare_input_data(self.game.board)
             done = self.game.game_over
+
+            print("Print State: ", type(last_move["board_before"]))
             current_state = self.prepare_input_data(last_move["board_before"])
             reward = self.calculate_reward(game_result)
 
@@ -386,21 +397,24 @@ class GameAI(Player):
             return 1
         elif game_result == "lose":
             return -1
-        return 0  # Draw
+        return -0.5  # Draw
 
-    def save_hyperparameters(self, filepath):
+    def save_hyperparameters(self, player_name: str, initial_pieces: int):
         """Save the hyperparameters to a file.
 
         Parameters:
         filepath (str): The path to the file where the hyperparameters will be saved.
 
         """
+        directory = f"model/{initial_pieces}"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
         hyperparams = {
             "gamma": self.gamma,
             "learning_rate": self.learning_rate,
             "learning_rate_decay": self.learning_rate_decay,
         }
-        with open(filepath, "w", encoding="utf-8") as file:
+        with open(f"{directory}/{player_name}_hyperparams.json", "w", encoding="utf-8") as file:
             json.dump(hyperparams, file)
 
     def load_hyperparameters(self, filepath):
@@ -414,11 +428,41 @@ class GameAI(Player):
             hyperparams = json.load(file)
         self.set_hyperparameters(hyperparams)
 
-    def save_model(self, filepath):
-        """Save the model to a file.
+    def save_model(self, player_name: str, initial_pieces: int):
+        """
+        Save the model to a file.
 
         Parameters:
-        filepath (str): The path to the file where the model will be saved.
-
+        player_name (str): The name of the player.
+        initial_pieces (int): The initial number of pieces.
         """
-        self.model.save(filepath)
+        if self.model is None:
+            print("Error: Model is None. Cannot save.")
+            return
+
+        directory = f"model/{initial_pieces}"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        save_model(self.model, f"{directory}/{player_name}.h5")
+
+    def load_model(self, player_name: str, initial_pieces: int):
+        """
+        Load the model from a file.
+
+        Parameters:
+        player_name (str): The name of the player.
+        initial_pieces (int): The initial number of pieces.
+        """
+        directory = f"model/{initial_pieces}"
+        if not os.path.exists(directory):
+            print("Model directory does not exist.")
+            return
+        loaded_model = load_model(f"{directory}/{player_name}.h5")
+        if isinstance(loaded_model, Model):
+            self.model = loaded_model
+        else:
+            print("Failed to load model.")
+
+    def update_score(self, new_score: float):
+        if new_score > self.score:
+            self.score = new_score
