@@ -1,4 +1,3 @@
-"""This module contains classes related to the game state, configuration, and main game logic."""
 import os
 import logging
 import datetime
@@ -8,6 +7,11 @@ from .Player import Player
 
 
 class GameState:
+    """
+    The `GameState` class represents the state of a game, including the number of pieces, turn limit,
+    play count, random start option, move history, undone moves, game over status, and current turn.
+    """
+
     def __init__(self, num_pieces, turn_limit, random_start):
         self.initial_pieces = num_pieces
         self.turn_limit = turn_limit
@@ -20,6 +24,11 @@ class GameState:
 
 
 class GameConfig:
+    """
+    The GameConfig class represents the configuration settings for a game, including the number of
+    pieces, turn limit, and whether the game starts with a random setup.
+    """
+
     def __init__(self, num_pieces, turn_limit, random_start=False):
         self.num_pieces = num_pieces
         self.turn_limit = turn_limit
@@ -34,6 +43,8 @@ class Game:
         self.current_player = self.player1
         self.session_dir = None
         self.game_over = False
+        self.winner = None
+        self.last_action = None
         self._setup_game_environment()
         self.reset_game()
 
@@ -102,6 +113,7 @@ class Game:
             if self.board.is_valid_move(src_coord, dest_coord, self.current_player.symbol):
                 self.record_move(src_coord, dest_coord)
                 self._execute_move(src_coord, dest_coord)
+                self.last_action = (src_coord, dest_coord)
                 self.check_game_status()
             else:
                 logging.info("AI attempted invalid move: %s to %s", src_coord, dest_coord)
@@ -136,6 +148,7 @@ class Game:
         if self.board.is_valid_move(src_coord, dest_coord, self.current_player.symbol):
             self.record_move(source, destination)
             self._execute_move(src_coord, dest_coord)
+            self.last_action = (src_coord, dest_coord)
             return self.check_game_status()
         print(f"Invalid move attempted from {source} to {destination}")
         return False
@@ -221,7 +234,8 @@ class Game:
 
         return redone_move
 
-    def _format_coordinates(self, coord):
+    @staticmethod
+    def _format_coordinates(coord):
         """The function `_format_coordinates` converts a coordinate string or tuple into a formatted
         string.
 
@@ -283,6 +297,7 @@ class Game:
         if self.current_player == self.player2:  # Check at the end of Player 2's turn
             winner = self.check_win_condition()
             if winner:
+                self.winner = self.player1 if winner == self.player1.symbol else self.player2
                 game_over_message = f"Game Over. Winner: {winner}"
                 logging.info(game_over_message)
                 self.game_over = True
@@ -359,6 +374,7 @@ class Game:
         self.game_moves = []
         self.move_history = []
         self.undone_moves = []
+        self.winner = None
 
         # Increase play count
         self.state.play_count += 1
@@ -368,7 +384,7 @@ class Game:
 
         # Log player unique moves
         logging.info("Player 1 Unique Moves: %s", self.player1.count_unique_moves(self.board))
-        logging.info("Player 1 Unique Moves: %s", self.player2.count_unique_moves(self.board))
+        logging.info("Player 2 Unique Moves: %s", self.player2.count_unique_moves(self.board))
 
     def train_ai(self, num_games):
         """
@@ -434,8 +450,10 @@ class Game:
             # Optionally save the model after each game
             # ai_player.save_model(f"game_ai_model_{game_index}.h5")
 
-    def board_to_string(self, board):
-        """The function `board_to_string` takes a board object and returns a string representation of the
+    @staticmethod
+    def board_to_string(board):
+        """
+        The function `board_to_string` takes a board object and returns a string representation of the
         board.
 
         Parameters
@@ -443,7 +461,7 @@ class Game:
         board : GameBoard
             The `board` parameter is a 2-dimensional list representing a game board. Each element in the
         list represents a row on the board, and each element within a row represents a cell on the
-        board. The elements can be either a string representing the content of the cell (e.g., "X
+        board. The elements can be either a string representing the content of the cell (e.g., "X")
 
         Returns
         -------
@@ -484,6 +502,15 @@ class Game:
                 file.write("\n---\n\n")
         print(f"Training data collected for game {game_number}: {len(training_data)} entries.")
 
+    def play_game(self):
+        """
+        Simulate a full game between two AI players.
+        """
+        while not self.is_game_over() and self.current_turn < self.state.turn_limit:
+            self.play_ai_turn()
+            self.switch_player()
+            self.current_turn += 1
+
     def determine_game_result(self):
         """The function determines the result of a game based on the winner or if it is a draw.
 
@@ -501,3 +528,26 @@ class Game:
         if winner is None:
             return "draw"
         return "lose"
+
+    def get_state(self):
+        return self.board
+
+    def get_action(self):
+        return self.last_action
+
+    def get_reward(self):
+        if self.is_game_over():
+            if self.winner == self.player1:
+                return 1
+            elif self.winner == self.player2:
+                return -1
+            else:
+                return 0  # Draw
+        else:
+            return 0  # Game is not over yet
+
+    def get_next_state(self):
+        return self.get_state()
+
+    def is_done(self):
+        return self.is_game_over()
